@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>良秀クイズ</title>
+    <style>
+        /* --- CSSデザイン --- */
+        body {
+            font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
+            background-color: #f4f4f9;
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+
+        #app-container {
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 700px; /* 表が入るので少し幅を広げました */
+        }
+
+        h1 { color: #d32f2f; text-align: center; margin-bottom: 10px; }
+        h2 { margin-top: 0; color: #555; font-size: 1.2em; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 20px;}
+        p.description { line-height: 1.6; color: #666; margin-bottom: 20px; }
+
+        /* 画面の切り替え表示用 */
+        .screen { display: none; }
+        .screen.active { display: block; animation: fadeIn 0.3s ease-in-out; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* --- スタート画面 --- */
+        /* 問題数表のスタイル */
+        .matrix-table-container {
+            margin-bottom: 20px;
+            overflow-x: auto;
+        }
+        table.matrix-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85em;
+        }
+        table.matrix-table th, table.matrix-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: center;
+        }
+        table.matrix-table th {
+            background-color: #f8f8f8;
+            font-weight: bold;
+        }
+        table.matrix-table td.has-count {
+            font-weight: bold;
+            color: #d32f2f;
+            background-color: #fff5f5;
+        }
+
+        .genre-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 25px;
+        }
+        .genre-label {
+            background-color: #eee;
+            padding: 8px 12px;
+            border-radius: 20px;
+            cursor: pointer;
+            user-select: none;
+            transition: background-color 0.2s;
+            font-size: 0.9em;
+        }
+        .genre-label:hover { background-color: #ddd; }
+        .genre-checkbox:checked + .genre-label {
+            background-color: #d32f2f;
+            color: white;
+        }
+        .genre-checkbox { display: none; }
+
+        /* --- クイズ画面 --- */
+        .quiz-info {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 15px;
+            font-size: 0.9em;
+            color: #666;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+        .difficulty-tag.カンタン { color: #2196F3; font-weight: bold; }
+        .difficulty-tag.普通 { color: #4CAF50; font-weight: bold; }
+        .difficulty-tag.ちょいむず { color: #FFC107; font-weight: bold; }
+        .difficulty-tag.むず { color: #F44336; font-weight: bold; }
+
+        #question-text {
+            font-size: 1.15em;
+            margin-bottom: 25px;
+            line-height: 1.6;
+            font-weight: bold;
+        }
+        .choices-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 25px;
+        }
+        .choice-btn {
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            background-color: #fff;
+            color: #333;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: all 0.2s;
+            text-align: left;
+            position: relative;
+        }
+        .choice-btn:hover {
+            border-color: #bbb;
+            background-color: #f9f9f9;
+        }
+        /* 選択中のスタイル（正誤はまだ出さない） */
+        .choice-btn.selected {
+            border-color: #d32f2f;
+            background-color: #fff0f0;
+            color: #d32f2f;
+            font-weight: bold;
+        }
+        .choice-btn.selected::after {
+            content: '●';
+            position: absolute;
+            right: 15px;
+            color: #d32f2f;
+        }
+
+        /* --- 結果画面 --- */
+        #result-summary {
+            text-align: center;
+            background: #f8f8f8;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        #result-score { font-size: 1.4em; margin: 10px 0; }
+        .score-highlight { color: #d32f2f; font-weight: bold; font-size: 1.3em; }
+        #selected-genres-display { font-size: 0.9em; color: #666; margin-bottom: 5px; }
+
+        /* 振り返りリスト */
+        .review-list {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            max-height: 400px; /* 長すぎる場合はスクロール */
+            overflow-y: auto;
+            border-top: 2px solid #eee;
+            padding-top: 15px;
+        }
+        .review-item {
+            padding: 15px;
+            border: 1px solid #eee;
+            border-radius: 8px;
+            background: #fff;
+        }
+        .review-item.incorrect { border-left: 5px solid #F44336; background-color: #fff5f5; }
+        .review-item.correct { border-left: 5px solid #4CAF50; }
+        
+        .review-q-text { font-weight: bold; font-size: 0.95em; margin-bottom: 8px; display: block;}
+        .review-detail { font-size: 0.9em; line-height: 1.5; }
+        .user-ans { display: block; }
+        .user-ans.wrong-text { color: #D32F2F; text-decoration: line-through; }
+        .user-ans.correct-text { color: #388E3C; }
+        .correct-ans { display: block; color: #d32f2f; font-weight: bold; margin-top: 4px; }
+        .review-tag {
+            display: inline-block;
+            font-size: 0.75em;
+            padding: 2px 6px;
+            background: #eee;
+            border-radius: 4px;
+            margin-bottom: 5px;
+            color: #666;
+        }
+
+        /* 共通ボタン */
+        .action-btn {
+            width: 100%;
+            padding: 15px;
+            background-color: #d32f2f;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .action-btn:hover { background-color: #b71c1c; }
+        .action-btn:disabled { background-color: #ccc; cursor: not-allowed; }
+        
+        /* 次へボタン用コンテナ（右寄せなどしたければ調整可） */
+        .nav-area { margin-top: 20px; }
+
+    </style>
+</head>
+<body>
+
+    <div id="app-container">
+        <h1>良秀クイズ</h1>
+
+        <div id="start-screen" class="screen active">
+            <p class="description">
+                <div style="background-color: #e8f5e9; padding: 10px; border-radius: 6px; font-size: 0.85em; color: #2e7d32; margin-bottom: 20px; border: 1px solid #c8e6c9;">
+    <strong>【サイトの安全性について】</strong><br>
+    このクイズは個人のファンメイド作品です。<br>
+    回答データの収集・サーバーへの送信は一切行っていません。<br>
+    すべての処理はお使いのブラウザ（端末内）で完結しており、安全に遊んでいただけます。<br>
+    ※ログインやアプリのインストールも不要です。
+</div>
+                limbus companyの良秀に関するクイズです。挑戦したいジャンルを任意選択できます。<br>
+                最後に、選択したジャンル内（あなたが挑戦した問題数を分母とする）での正答率が表示されます。気軽に挑戦してみてください！
+            </p>
+
+            <div class="matrix-table-container">
+                <table class="matrix-table" id="matrix-table">
+                    </table>
+            </div>
+
+            <h2>ジャンル選択</h2>
+            <div class="genre-group" id="genre-checkboxes">
+                </div>
+                <p id="selection-count-display" style="text-align: center; font-weight: bold; margin-bottom: 15px; color: #d32f2f;">選択中の問題数: 0 問</p>
+            <button id="start-btn" class="action-btn">クイズ開始</button>
+        </div>
+
+        <div id="quiz-screen" class="screen">
+            <div class="quiz-info">
+                <span>問題 <span id="current-question-num"></span> / <span id="total-question-num"></span></span>
+                <span>難易度: <span id="difficulty-display" class="difficulty-tag"></span></span>
+                <span>ジャンル: <span id="genre-display"></span></span>
+            </div>
+            <div id="question-text"></div>
+            <div class="choices-container" id="choices-container">
+                </div>
+            <div class="nav-area">
+                <button id="next-btn" class="action-btn" disabled>次へ</button>
+            </div>
+        </div>
+
+        <div id="result-screen" class="screen">
+            <h2>結果発表</h2>
+            <div id="result-summary">
+                <div id="selected-genres-display"></div>
+                <div id="result-score">
+                    正解数: <span class="score-highlight" id="correct-count"></span> / <span id="result-total-count"></span> 問<br>
+                    正答率: <span class="score-highlight" id="accuracy-rate"></span> %
+                </div>
+            </div>
+            
+            <h3>回答の振り返り（誤答優先）</h3>
+            <div id="review-list" class="review-list">
+                </div>
+
+            <div class="nav-area">
+                <button id="retry-btn" class="action-btn">もう一度ジャンルを選ぶ</button>
+            </div>
+            <div style="margin-top: 40px; padding: 20px; background-color: #f0f4f8; border-radius: 8px; text-align: center; font-size: 0.95em; line-height: 1.8;">
+        <p style="margin: 0 0 10px 0;">
+            遊んでいただいてありがとうございました！<br>
+            誤問報告等は作者のマシュマロへどうぞ。
+        </p>
+        <a href="https://marshmallow-qa.com/3wxp5enklosj2nk?t=je44ng&utm_medium=url_text&utm_source=promotion" target="_blank" style="color: #d32f2f; font-weight: bold; text-decoration: underline;">
+            マシュマロを送る
+        </a>
+    </div>
+        </div>
+    </div>
+
+    <script>
+        /* --- JavaScript ロジック --- */
+
+        // クイズデータ定義
+        const quizDataRaw = [
+            { rank: 1, difficulty: "カンタン", genre: "原典", question: "良秀の原典である『地獄変』の作者は？", correctAnswer: "芥川龍之介", wrongAnswers: ["太宰治", "石川啄木", "滝沢馬琴"] },
+            { rank: 3, difficulty: "ちょいむず", genre: "原典", question: "良秀の原典である『地獄変』で登場しない動物を選べ。", correctAnswer: "兔", wrongAnswers: ["猿", "蛇", "みみずく"] },
+            { rank: 2, difficulty: "普通", genre: "原典", question: "『蜘蛛の糸』の主人公の名前は？", correctAnswer: "カンダタ", wrongAnswers: ["カンタダ", "カイダタ", "カイタダ"] },
+            { rank: 1, difficulty: "カンタン", genre: "ストーリー", question: "8.5章切磋拓春において、良秀は「言・聞・無・子は、あ・な」と発言したが、これはどういう意味？", correctAnswer: "言うことを聞かない子供は、あやして宥めなければならない。", wrongAnswers: ["言うことを聞かない子供は、あくまで泣かせなければならない。", "言うことを聞かない子供は、飽きるまで慣らさないといけない。", "言うことを聞かない子供は、アイドルにならなければならない。"] },
+            { rank: 2, difficulty: "普通", genre: "その他", question: "良秀の刀に刻まれている四字熟語として正しいのはどれ？", correctAnswer: "無我夢中　阿鼻叫喚　支離滅裂", wrongAnswers: ["無我夢中　支離滅裂　阿鼻叫喚", "阿鼻叫喚　支離滅裂　無我夢中", "阿鼻叫喚　無我夢中　支離滅裂"] },
+            { rank: 3, difficulty: "ちょいむず", genre: "ストーリー", question: "4章ラストでアルフォンソが「記憶消去手続きを進行するよ」と言った際の、良秀の返答として正しいものはどれ？", correctAnswer: "く・へ。俺の記憶に手を出したら余すことなく裂いてやる。", wrongAnswers: ["く・へ。俺の記憶に手を出したら首をへし折る。", "く・へ。俺の記憶に手を出したら首をへし折り四肢を裂く。", "く・へ。俺の記憶に手を出したら滅多切りにしてやる。"] },
+            { rank: 4, difficulty: "むず", genre: "ストーリー", question: "次のうち、レイホンのセリフとして正しいものはどれ？", correctAnswer: "次はお前さんたちのオヤジらの話でもしようやないか、ヨシヒデ！", wrongAnswers: ["次はお前のオヤジらの話でもしようやないか、ヨシヒデ！", "次はお前さんたちのオヤジの話でもしようやないか、ヨシヒデ！", "次はお前のオヤジの話でもしようやないか、ヨシヒデ！"] },
+            { rank: 2, difficulty: "普通", genre: "その他", question: "8章のレイホン戦で、良秀を出撃させると得られる特殊専用デバフの名前は？", correctAnswer: "滅多斬りにされた記憶", wrongAnswers: ["痛めつけられた記憶", "乱れ斬りにされた記憶", "皆殺しにされた記憶"] },
+            { rank: 4, difficulty: "むず", genre: "原典", question: "レイホン（雷横）は原典『水滸伝』で、梁山泊第何位？", correctAnswer: "25", wrongAnswers: ["2", "11", "21"] },
+            { rank: 2, difficulty: "普通", genre: "人格ストーリー", question: "良秀が「...まぁ、親ってモンは自分の偏見を子に植え付けないと気が済まない存在だったか。」と発言したのは、どの人格の人格ストーリー中？", correctAnswer: "ロボトミーEGO:;赤眼、懺悔", wrongAnswers: ["N社EGO:;軽蔑、畏敬", "チーフバトラー", "南部セブン協会"] },
+            { rank: 4, difficulty: "むず", genre: "人格ストーリーとセリフ", question: "N社EGO:;軽蔑、畏敬　良秀のパッシブ名として正しいものは？", correctAnswer: "逃した@#$の手", wrongAnswers: ["逃した@$#の手", "逃した$#@の手", "逃した$@#の手"] },
+            { rank: 3, difficulty: "ちょいむず", genre: "人格性能", question: "N社EGO:;軽蔑、畏敬　良秀のパッシブ「逃した@#$の手」の発動条件は？", correctAnswer: "色欲2共鳴", wrongAnswers: ["色欲2保有", "色欲3共鳴", "色欲3保有"] },
+            { rank: 1, difficulty: "カンタン", genre: "ストーリー", question: "8.5章切磋琢春の良秀の授業で、彼女が腹話術に使ったと思われる人形の動物の種類は？（授業中のSDイラスト）", correctAnswer: "パンダ", wrongAnswers: ["くま", "うさぎ", "いぬ"] },
+            { rank: 1, difficulty: "カンタン", genre: "その他", question: "シーズン7のタイトルは？", correctAnswer: "蜘ノ糸ノ赤", wrongAnswers: ["蜘蛛の糸", "地獄変", "蜘ノ糸ノ血"] },
+            { rank: 2, difficulty: "普通", genre: "その他", question: "上映館から見られる良秀のプロフィールの、「扶養家族数」の欄には何と記入されている？", correctAnswer: "記入なし", wrongAnswers: ["0", "1", "一"] },
+            { rank: 2, difficulty: "普通", genre: "原典", question: "良秀の原典『地獄変』と、その元ネタ『絵仏師良秀』で、「良秀」の読み方は？", correctAnswer: "『地獄変』では「ヨシヒデ」、『絵仏師良秀』では「リョウシュウ」", wrongAnswers: ["『地獄変』では「リョウシュウ」、『絵仏師良秀』では「ヨシヒデ」", "『地獄変』『絵仏師良秀』共に「ヨシヒデ」", "『地獄変』『絵仏師良秀』共に「リョウシュウ」"] },
+            { rank: 3, difficulty: "ちょいむず", genre: "ストーリー", question: "8章で「バオユ」という名前の由来を聞いた良秀は、どのような感想を述べた？", correctAnswer: "おぞましい", wrongAnswers: ["馬鹿馬鹿しい", "忌まわしい", "おかしい"] },
+            { rank: 1, difficulty: "カンタン", genre: "ストーリー", question: "エイプリルフールストーリーで良秀と中身が入れ替わったのは誰？", correctAnswer: "ホンル", wrongAnswers: ["グレゴール", "シンクレア", "ドンキホーテ"] },
+            { rank: 2, difficulty: "普通", genre: "ストーリー", question: "6章で良秀はバトラーのことを何と評している？", correctAnswer: "家にぶち込まれ、飼い主にリードを握られた犬たち。", wrongAnswers: ["い・ぬ。家に従えどひれ伏さない、抜かりない連中。", "家の中から出られない、哀れな飼い犬だな。", "い・ぬ。意思がない、気の抜けた集団。"] },
+            { rank: 4, difficulty: "むず", genre: "ストーリー", question: "8章家主大戦一次審査において、良秀がホンルを真っ二つにした際に、禁忌が破られたと思ったユアンチュンが呼び寄せた黒獣の種類として適当でないものは？", correctAnswer: "巳", wrongAnswers: ["丑", "申", "辰"] },
+            { rank: 3, difficulty: "ちょいむず", genre: "その他", question: "ヴェルギリウスアナウンサーの良秀に対する特殊セリフです。⚪︎⚪︎に入る言葉は？「ふむ、戦闘感覚だけは囚人になっても素晴らしくはあるな。次はその⚪︎⚪︎さえ直せば文句なしだ、囚人４番」", correctAnswer: "さっぱり分からない口調", wrongAnswers: ["変に短縮する習慣", "言葉を短くする悪癖", "意味が伝わらない言葉"] },
+            { rank: 2, difficulty: "普通", genre: "その他", question: "「ダンテのノート」の「指」のページで、指は良秀の何であると書かれていると考えられる？", correctAnswer: "後ろ盾", wrongAnswers: ["宿敵", "親戚", "信奉者"] },
+            { rank: 4, difficulty: "むず", genre: "原典", question: "原典『地獄変』において、語り手曰く、堀川の大殿が生まれる前に母親の枕元に立ったとされるのはどの明王？", correctAnswer: "大威徳明王", wrongAnswers: ["不動明王", "降三世明王", "金剛夜叉明王"] },
+            { rank: 3, difficulty: "ちょいむず", genre: "原典", question: "原典『地獄変』において、語り手が良秀の「人に嫌がられる悪い癖」として紹介していないものは、次のうちどれ？", correctAnswer: "傲慢", wrongAnswers: ["吝嗇", "恥知らず", "怠けもの"] },
+            { rank: 4, difficulty: "むず", genre: "原典", question: "原典『地獄変』において、良秀の弟子が良秀の「増長慢を譏」る目的でつけた渾名は？", correctAnswer: "智羅永寿", wrongAnswers: ["智羅永心", "智楽栄寿", "智礼永寿"] },
+            { rank: 1, difficulty: "カンタン", genre: "原典", question: "『蜘蛛の糸』において、御釈迦様が地獄にいるカンダタに糸を垂らす慈悲を与えてやった理由は何？", correctAnswer: "カンダタが生前、小さな蜘蛛を一匹、踏まずに見逃したから。", wrongAnswers: ["カンダタが生前、蜘蛛を愛情込めて飼育していたから。", "カンダタが地獄の血の海で溺れかけている蜘蛛を助けてやったから。", "特に理由はない。"] },
+           
+            { rank: 4, difficulty: "むず", genre: "人格性能", question: "エドガー家　チーフバトラー　良秀の回避成功時の効果は？", correctAnswer: "精神力を3回復（1ターンにつき5回まで）、自分の呼吸回数が1増加（1ターンにつき5回まで）", wrongAnswers: ["精神力を3回復（1ターンにつき3回まで）、自分の呼吸回数が1増加（1ターンにつき3回まで）", "精神力を3回復（1ターンにつき5回まで）、自分の呼吸威力が3増加（1ターンにつき5回まで）", "精神力を3回復（1ターンにつき3回まで）、自分の呼吸威力が3増加（1ターンにつき3回まで）"] },
+            { rank: 1, difficulty: "カンタン", genre: "人格イラスト", question: "エドガー家　チーフバトラー　良秀の同期後イラストにいるのは誰？", correctAnswer: "イシュメール", wrongAnswers: ["シンクレア", "ファウスト", "ウーティス"] },
+            { rank: 4, difficulty: "むず", genre: "人格性能", question: "N社EGO:;軽蔑、畏敬　良秀が持つ効果について、次の内容が当てはまるものはどれ？「保有しているスキルスロットのうち一つの挑発値が20増加」", correctAnswer: "視線の軽蔑", wrongAnswers: ["軽蔑の視線", "視線", "軽蔑"] },
+            { rank: 1, difficulty: "カンタン", genre: "人格性能", question: "N社EGO:;軽蔑、畏敬　良秀がスキルとして持たない罪悪属性は次のうちどれ？", correctAnswer: "憂鬱", wrongAnswers: ["怠惰", "色欲", "憤怒"] },
+            { rank: 2, difficulty: "普通", genre: "人格性能", question: "りょ・ミ・パ　厨房長　良秀のスキル３は、対象の失った体力の何％分、ダメージ量が増加する？", correctAnswer: "5", wrongAnswers: ["3", "8", "10"] },
+            { rank: 2, difficulty: "普通", genre: "人格性能", question: "りょ・ミ・パ　厨房長　良秀が回避成功時に得るバフは？", correctAnswer: "クイック1", wrongAnswers: ["渇き1", "体力を5回復", "呼吸1"] },
+            { rank: 1, difficulty: "カンタン", genre: "人格性能", question: "ロボトミーEGO::　赤眼・懺悔　良秀のスキルのうち、罪悪属性が憂鬱なのはどれ？", correctAnswer: "スキル2", wrongAnswers: ["スキル1", "スキル3", "反撃"] },
+            { rank: 2, difficulty: "普通", genre: "人格性能", question: "ロボトミーEGO::　赤眼・懺悔　良秀のスキル３が強化スキル３「ガチでドタマを割る」になる条件として正しいものは？", correctAnswer: "赤眼と懺悔がそれぞれ15以上", wrongAnswers: ["赤眼と懺悔が合わせて15以上", "赤眼と懺悔がそれぞれ20以上", "赤眼と懺悔が合わせて20以上"] },
+            { rank: 3, difficulty: "ちょいむず", genre: "人格イラスト", question: "ロボトミーEGO::　赤眼・懺悔　良秀が母なる蜘蛛のEGO武器を持っているのはどちらの手？", correctAnswer: "右手", wrongAnswers: ["左手", "両手", "どちらにも持ってない"] },
+            { rank: 1, difficulty: "カンタン", genre: "人格ストーリーとセリフ", question: "W社 3級　整理要員　良秀が会社から支給された武器につけた名前は？", correctAnswer: "次元魔剣", wrongAnswers: ["空間妖刀", "屈折魔刀", "ディメンションアートナイフ"] },
+            { rank: 4, difficulty: "むず", genre: "人格性能", question: "W社 3級　整理要員　良秀が充電回数10の時にスキル3を使用すると、消費する体力は体力最大値の何％？", correctAnswer: "15", wrongAnswers: ["10", "20", "25"] },
+            { rank: 2, difficulty: "普通", genre: "人格性能", question: "南部セブン協会　6課　良秀のスキルのうち、単コインであるのはどれ？（守備スキルを除く）", correctAnswer: "スキル１と２", wrongAnswers: ["スキル１のみ", "スキル２のみ", "スキル１と３"] },
+            { rank: 3, difficulty: "ちょいむず", genre: "人格性能", question: "次の人格のうち、打撃耐性が「普通」であるのはどれ？", correctAnswer: "黒雲会　若衆", wrongAnswers: ["エドガー家 チーフバトラー", "南部リウ協会　4課", "N社EGO::軽蔑、畏敬"] },
+            { rank: 2, difficulty: "普通", genre: "人格ストーリーとセリフ", question: "現在（2025/12/03）実装されている南部セブン協会良秀は何課？", correctAnswer: "6", wrongAnswers: ["3", "4", "5"] },
+            { rank: 3, difficulty: "ちょいむず", genre: "人格性能", question: "南部セブン協会　6課　良秀がスキル１、２、３で付与できないデバフは次のうちどれ？", correctAnswer: "攻撃レベル減少", wrongAnswers: ["防御レベル減少", "斬撃脆弱", "破裂"] },
+            { rank: 3, difficulty: "ちょいむず", genre: "人格性能", question: "南部リウ協会　4課　良秀は、サポートパッシブで、速度が最も低い味方一名が火傷の付与された敵を討伐時、ランダムな敵二名へ火傷を付与します。この時の付与値は？", correctAnswer: "3", wrongAnswers: ["1", "2", "4"] },
+            { rank: 1, difficulty: "カンタン", genre: "人格イラスト", question: "次の人格のうち、同期前イラストでタンクトップ姿を見せてくれるのはどれ？", correctAnswer: "南部リウ協会　4課", wrongAnswers: ["南部セブン協会　6課", "黒雲会　若衆", "LCCB　係長"] },
+            { rank: 2, difficulty: "普通", genre: "人格性能", question: "LCB　囚人　良秀のスキル１の全てのコインが表になった場合、スキル威力はいくつになる？", correctAnswer: "11", wrongAnswers: ["9", "10", "12"] },
+            { rank: 1, difficulty: "カンタン", genre: "人格性能", question: "次のうち、黒獣-卯　良秀よりも最大HPが低いのは？（レベル55で比較）", correctAnswer: "この中にはいない", wrongAnswers: ["黒獣-酉　シンクレア", "黒獣-巳　グレゴール", "黒獣-卯　筆頭　ファウスト"] },
+            { rank: 3, difficulty: "ちょいむず", genre: "人格性能", question: "黒雲会　若衆　良秀がスキル３の２コイン目で付与できる出血回数はいくつ？", correctAnswer: "3", wrongAnswers: ["1", "2", "4"] },
+            { rank: 1, difficulty: "カンタン", genre: "人格イラスト", question: "黒雲会　若衆　良秀の同期前イラストにいるのは次のうち誰？", correctAnswer: "ロージャ", wrongAnswers: ["シンクレア", "ウーティス", "イシュメール"] },
+            { rank: 2, difficulty: "普通", genre: "人格性能", question: "20区　ユロージヴィ　良秀のサポートパッシブ発動条件は？", correctAnswer: "怠惰4保有", wrongAnswers: ["怠惰4共鳴", "色欲4保有", "色欲4共鳴"] },
+            { rank: 2, difficulty: "普通", genre: "人格性能", question: "LCCB　係長　良秀のサポートパッシブについて、弾丸を最も少なく保有する味方一名が、コインで最後の弾丸を消耗したならコインの攻撃終了時、それぞれの対象へ該当コインの攻撃で与えたダメージ量の⚪︎%だけ追加ダメージを与える。⚪︎に入る数字は？", correctAnswer: "50", wrongAnswers: ["25", "75", "100"] },
+            { rank: 2, difficulty: "普通", genre: "人格イラスト", question: "次のうち、イラスト内で良秀がタバコを吸っていないのはどれ？", correctAnswer: "南部セブン協会　6課　同期後", wrongAnswers: ["りょ・ミ・パ　厨房長　同期前", "南部リウ協会　4課　同期後", "黒獣-卯　同期前"] },
+            { rank: 2, difficulty: "普通", genre: "人格性能", question: "次のうち、色欲属性ではないものは？", correctAnswer: "LCB　囚人　良秀　回避", wrongAnswers: ["エドガー家　チーフバトラー　良秀　スキル１", "ロボトミーEGO::赤眼・懺悔　良秀　反撃", "りょ・ミ・パ　厨房長　良秀　スキル３"] },
+            { rank: 1, difficulty: "カンタン", genre: "人格イラスト", question: "りょ・ミ・パ　厨房長 良秀　同期前イラストで、良秀が右手に持っているのは何？", correctAnswer: "注射器", wrongAnswers: ["ナイフ", "包丁", "人間の腕"] },
+            { rank: 2, difficulty: "普通", genre: "EGO性能", question: "次のうち、EGO「森羅炎象」で表面的中時に付与できるデバフとして過不足がないものはどれ？", correctAnswer: "火傷と脆弱", wrongAnswers: ["火傷と出血", "火傷", "火傷と斬撃脆弱"] },
+            { rank: 2, difficulty: "普通", genre: "EGO性能", question: "次のうち、侵食EGOスキルが減算コインではないものはどれ？", correctAnswer: "この中にはない", wrongAnswers: ["4本目のマッチの火", "ソーダ", "胸痛"] },
+            { rank: 3, difficulty: "ちょいむず", genre: "EGO性能", question: "EGO「軽蔑、畏敬」はパッシブ効果で「自分が敵へ基本攻撃スキルを使用する度、自分の使用したスキル属性以外の最も保有量の少ないランダムな属性のEGO資源を1つ追加で得る」ことができるが、これは１ターンに何回まで発動できる？", correctAnswer: "2", wrongAnswers: ["1", "3", "5"] },
+            { rank: 3, difficulty: "ちょいむず", genre: "EGO性能", question: "EGO「軽蔑、畏敬」の覚醒スキルを使用した時、[使用前]に得る「軽蔑の視線」の獲得量について、正しい表記はどれ？", correctAnswer: "最大共鳴数＋１を、このターンと次のターンに得る", wrongAnswers: ["最大共鳴数＋１を、このターンに得る", "最大共鳴数を、このターンと次のターンに得る", "最大共鳴数を、このターンに得る"] },
+            { rank: 4, difficulty: "むず", genre: "EGO性能", question: "EGO「胸痛」で得られるバフ「深い吸気」を所有していて、呼吸威力が85、呼吸回数が17の良秀のクリティカルダメージ量は何％増加する？", correctAnswer: "68", wrongAnswers: ["51", "85", "100"] },
+            { rank: 1, difficulty: "カンタン", genre: "EGO性能", question: "次のうち、TETHランクの良秀のEGOはどれ？", correctAnswer: "盲目", wrongAnswers: ["ソーダ", "赤眼（開）", "4本目のマッチの火"] },
+            { rank: 1, difficulty: "カンタン", genre: "EGOイラスト", question: "次のうち、良秀のEGO「赤眼」と「赤眼（開）」のイラストの違いは何？", correctAnswer: "髪の長さ", wrongAnswers: ["髪の色", "咥えている煙草の色", "目の色"] },
+            { rank: 4, difficulty: "むず", genre: "EGOイラスト", question: "EGO「森羅炎象」イラストの良秀の背後にある蝋燭の数（視認できる範囲で）として、正しい選択肢はどれ？", correctAnswer: "40~50", wrongAnswers: ["20~30", "30~40", "50~60"] },
+            { rank: 3, difficulty: "ちょいむず", genre: "EGO性能", question: "次の良秀のEGOのうち、耐性が「色欲脆弱」になるのはどれ？", correctAnswer: "軽蔑、畏敬", wrongAnswers: ["森羅炎象", "ソーダ", "赤眼（開）"] },
+            { rank: 2, difficulty: "普通", genre: "EGO性能", question: "EGO「赤眼（開）」覚醒スキルでは、メインターゲットの速度が自分より⚪︎以上遅い場合、コイン威力＋７。⚪︎に入る数字は？", correctAnswer: "3", wrongAnswers: ["2", "4", "5"] },
+            { rank: 2, difficulty: "普通", genre: "EGO性能", question: "次の良秀のEGOのうち、スキル発動時（[攻撃後]効果を含まない）に消耗する精神量が25であるのはどれ？", correctAnswer: "胸痛", wrongAnswers: ["4本目のマッチの火", "軽蔑、畏敬", "赤眼"] },
+            { rank: 1, difficulty: "カンタン", genre: "EGOイラスト", question: "EGO「ソーダ」イラストで、良秀が手に持った缶から噴出している液体は何色？", correctAnswer: "紫", wrongAnswers: ["オレンジ", "ピンク", "虹色"] },
+            { rank: 3, difficulty: "ちょいむず", genre: "EGOイラスト", question: "「森羅炎象」イラストの良秀の足の状態として正しいものはどれ？", correctAnswer: "裸足に草履（下駄）を履いている", wrongAnswers: ["裸足", "足袋を履いており、靴はない", "足袋を履き、草履（下駄）を履いている"] },
+            { rank: 3, difficulty: "ちょいむず", genre: "人格ストーリーとセリフ", question: "LCB　囚人　良秀の[朝の挨拶]、「どうして朝からうろついてるんだ？⚪︎⚪︎でも探してるのか？」の⚪︎⚪︎に入る言葉は？", correctAnswer: "乾電池", wrongAnswers: ["ねじ", "ライター", "朝食"] },
+            { rank: 2, difficulty: "普通", genre: "人格ストーリーとセリフ", question: "[敵混乱時]のセリフが「弱点は把握した。」である良秀の人格は次のうちどれ？", correctAnswer: "南部セブン協会　6課題", wrongAnswers: ["黒雲会　若衆", "W社　3級　整理要員", "LCCB　係長"] },
+            { rank: 2, difficulty: "普通", genre: "人格ストーリーとセリフ", question: "りょ・ミ・パ厨房長 良秀の[EX CLEAR戦闘勝利]セリフとして正しいものはどれ？", correctAnswer: "これくらいなら...早期完売の心配はしなくても良さそうだな。", wrongAnswers: ["材料がいっぱいだな。", "ふっ... 8人のシェフになれる日も近いな。", "うん、良い料理方法だったな。"] },
+            { rank: 1, difficulty: "カンタン", genre: "人格ストーリーとセリフ", question: "W社　３級　整理要員　良秀において、列車整理を好む彼女が任されて嫌がっている仕事は？", correctAnswer: "新人教育", wrongAnswers: ["書類整理", "オフィス内の掃除", "洗濯係"] },
+            { rank: 3, difficulty: "ちょいむず", genre: "人格ストーリーとセリフ", question: "エドガー家　チーフバトラー 良秀の[対話２]、「（中略）呆れた...。よく見ろ。最初から教えてやる。もう⚪︎回目だが...。」の⚪︎に入る数字は？", correctAnswer: "七", wrongAnswers: ["五", "十", "九"] },
+            { rank: 2, difficulty: "普通", genre: "人格ストーリーとセリフ", question: "ロボトミーEGO::赤眼・懺悔　良秀の[対話３]で、良秀はイサンを何と表現している？", correctAnswer: "背中に棺を背負ってる陰気臭い奴", wrongAnswers: ["死蝶の気に入りの黒髪男", "白黒の二丁拳銃の寡黙野郎", "話の長ったらしいあいつ"] },
+            { rank: 1, difficulty: "カンタン", genre: "人格ストーリーとセリフ", question: "N社EGO::軽蔑、畏敬　良秀が[対話２]で「この雑魚の中での唯一の楽しみ」と述べているのは誰？", correctAnswer: "イサン", wrongAnswers: ["ヘルマン", "クボ", "ムルソー"] },
+            { rank: 2, difficulty: "普通", genre: "人格ストーリーとセリフ", question: "N社EGO::軽蔑、畏敬　良秀の「そこまで嫌いじゃない。俺を軽蔑する視線。」というセリフはどのセリフ？", correctAnswer: "[選択肢失敗]", wrongAnswers: ["[戦闘敗北]", "[混乱時]", "[攻撃開始]"] },
+            { rank: 2, difficulty: "普通", genre: "人格性能", question: "君主ホンルが黒獣-卯　良秀と連携した際に得られる黒獣丸染の効果は？", correctAnswer: "自分の速度が対象より高ければ、ダメージ量＋5%", wrongAnswers: ["一方攻撃的中時、破裂回数が１増加", "一方攻撃的中時、破裂威力が１増加", "自分の速度が対象より高ければ、ダメージ量＋10%"] },
+            { rank: 1, difficulty: "カンタン", genre: "原典", question: "『地獄変』にて、良秀の娘が若殿にいじめられている猿を庇った理由は、娘本人曰く何か。", correctAnswer: "猿が父親の名前で呼ばれていたから。", wrongAnswers: ["猿がメスだったから。", "猿と幼馴染だから。", "以前、猿に助けてもらったことがあるから。"] },
+            { rank: 1, difficulty: "カンタン", genre: "原典", question: "『地獄変』最後で、良秀はどうなる？", correctAnswer: "首吊り自殺する", wrongAnswers: ["焼身自殺する", "地獄変の屏風で稼いだお金で豊かに余生を過ごす", "猿の飼育を始める"] },
+            { rank: 2, difficulty: "普通", genre: "ストーリー", question: "ストーリー中で良秀が「老害」と言ったのは、次のうちどの指に所属する人間に対して？", correctAnswer: "親指", wrongAnswers: ["中指", "薬指", "小指"] },
+            { rank: 3, difficulty: "ちょいむず", genre: "その他", question: "上映館で見られるプロフィールには、囚人によって記入されているものとされていないものがある。（記入内容は塗りつぶされて見えない）次のうち、良秀が記入していないのはどの項目？", correctAnswer: "職歴", wrongAnswers: ["身長と体重", "視力", "年齢"] },
+            { rank: 4, difficulty: "むず", genre: "ストーリー", question: "２章で良秀に対し「悲しいツラしてほっつき回るなら帽子をかぶって隠すなりしろよ！」と言ったのは次のうち誰？", correctAnswer: "陽気なマリアッチの組織員", wrongAnswers: ["陽気なマリアッチの構成員", "愉快なマリアッチの組織員", "愉快なマリアッチの構成員"] },
+            { rank: 3, difficulty: "ちょいむず", genre: "EGO発動セリフと演出", question: "「養分になる時間だ...ふっ。」というセリフは、次の良秀のEGOのうち、どれを使用した時のセリフ？", correctAnswer: "赤眼侵食", wrongAnswers: ["赤眼覚醒", "赤眼（開）侵食", "赤眼（開）覚醒"] },
+            { rank: 2, difficulty: "普通", genre: "人格ストーリーとセリフ", question: "「生まれた奴は親を選ぶ権利がない。ただその中で生きていく義務が残るだけだ。」というセリフは、どの良秀人格の人格ストーリーで見られるセリフ？", correctAnswer: "ロボトミーEGO::赤眼・懺悔", wrongAnswers: ["N社EGO::軽蔑、畏敬", "エドガー家　チーフバトラー", "黒獣-卯"] },
+          
+            { rank: 3, difficulty: "ちょいむず", genre: "EGO発動セリフと演出", question: "EGO「４本目のマッチの火」覚醒発動時のセリフ「この火もまた、芸術の⚪︎⚪︎だな」、⚪︎⚪︎に入るものは？", correctAnswer: "恍惚境", wrongAnswers: ["陶酔境", "真骨頂", "審美眼"] },
+            { rank: 1, difficulty: "カンタン", genre: "EGO発動セリフと演出", question: "EGO「森羅炎象」発動時のセリフ（短縮語部分のみ）として正しいものはどれ？", correctAnswer: "総・燃・美・為。", wrongAnswers: ["総・斬・美・為。", "総・炎・美・為。", "総・殺・美・為。"] },
+            { rank: 2, difficulty: "普通", genre: "EGO性能", question: "現在（2025/12/04）、良秀のEGOに存在しない罪悪属性はどれ？", correctAnswer: "怠惰", wrongAnswers: ["憂鬱", "嫉妬", "傲慢"] },
+            { rank: 1, difficulty: "カンタン", genre: "ストーリー", question: "０章にて、良秀は何番目に自己紹介をした？", correctAnswer: "9", wrongAnswers: ["5", "7", "10"] },
+            { rank: 4, difficulty: "むず", genre: "ストーリー", question: "1章では、言い争いをするイシュメールとヒースクリフの首を良秀がきり、その良秀の頭をドンキホーテが貫くという惨事が発生した。これに対しヴェルギリウスは四人にある当番を課すという罰を与えた。これはなに？", correctAnswer: "今月のバス掃除当番", wrongAnswers: ["今週のバス掃除当番", "今月の洗濯当番", "今週の洗濯当番"] },
+            { rank: 2, difficulty: "普通", genre: "その他", question: "アナウンサー「臨時T社特別捜査官たち」の[戦闘敗北]の良秀のセリフ、「どん・でん」とはどういう意味？", correctAnswer: "ドン底に転落して田楽刺し", wrongAnswers: ["ドン底に転落する伝統芸", "どんでん返しの田楽刺し", "どんでん返しの伝統芸"] },
+    { rank: 3, difficulty: "ちょいむず", genre: "人格イラスト", question: "次のうち、人格イラスト（SDキャラではない）で煙草を吸っていないのはどれ？", correctAnswer: "南部セブン協会　6課　同期後", wrongAnswers: ["南部リウ協会　４課　同期後", "黒雲会　若衆　同期前", "りょ・ミ・パ　厨房長　同期前"] },
+    { rank: 2, difficulty: "普通", genre: "EGO発動セリフと演出", question: "良秀のEGO「胸痛」覚醒発動時のセリフ「恨みも⚪︎⚪︎も無駄だったから、ただ何かを掴もうと心を砕いただけだ。」⚪︎⚪︎に入るセリフは？", correctAnswer: "後悔", wrongAnswers: ["絶望", "悲嘆", "羨望"] },
+    { rank: 2, difficulty: "普通", genre: "EGO発動セリフと演出", question: "良秀のEGO「ソーダ」覚醒発動時、良秀以外に何人のエビ人間が出てくる？", correctAnswer: "2", wrongAnswers: ["1", "3", "4"] },
+    { rank: 2, difficulty: "普通", genre: "ストーリー", question: "5章でリカルドと対面した時、良秀は彼を何と呼んだ？", correctAnswer: "小・兄", wrongAnswers: ["末・兄", "リカ・兄", "髪・兄"] },
+    { rank: 2, difficulty: "普通", genre: "ストーリー", question: "8章最後で、良秀の進む道が修羅の道となることをダンテに仄めかしたのは誰？", correctAnswer: "チォウ", wrongAnswers: ["ズーゴン", "ソード", "ヴェルギリウス"] },
+        ];
+
+        // ジャンル一覧
+        const genres = ["人格性能", "人格イラスト", "人格ストーリーとセリフ", "EGO性能", "EGOイラスト", "ストーリー", "原典", "EGO発動セリフと演出", "その他"];
+        
+        // 難易度一覧（ランク順）
+        const difficultyMap = {
+            1: "カンタン",
+            2: "普通",
+            3: "ちょいむず",
+            4: "むず"
+        };
+
+        // アプリケーションの状態管理
+        let currentQuestions = []; 
+        let currentQuestionIndex = 0; 
+        let userAnswers = []; // ユーザーの回答記録 { question, userAnswer, correctAnswer, isCorrect }
+        let currentSelection = null; // 現在の問題で選択中の回答
+
+        // DOM要素
+        const startScreen = document.getElementById('start-screen');
+        const quizScreen = document.getElementById('quiz-screen');
+        const resultScreen = document.getElementById('result-screen');
+        const genreCheckboxesContainer = document.getElementById('genre-checkboxes');
+        const startBtn = document.getElementById('start-btn');
+        const nextBtn = document.getElementById('next-btn');
+        const questionTextElem = document.getElementById('question-text');
+        const choicesContainerElem = document.getElementById('choices-container');
+        const currentQuestionNumElem = document.getElementById('current-question-num');
+        const totalQuestionNumElem = document.getElementById('total-question-num');
+        const difficultyDisplayElem = document.getElementById('difficulty-display');
+        const genreDisplayElem = document.getElementById('genre-display');
+        const correctCountElem = document.getElementById('correct-count');
+        const resultTotalCountElem = document.getElementById('result-total-count');
+        const accuracyRateElem = document.getElementById('accuracy-rate');
+        const retryBtn = document.getElementById('retry-btn');
+        const reviewListElem = document.getElementById('review-list');
+        const selectedGenresDisplayElem = document.getElementById('selected-genres-display');
+        const matrixTableElem = document.getElementById('matrix-table');
+
+        // --- 初期化処理 ---
+        // --- 初期化処理（修正版） ---
+function init() {
+    // マトリクス表の生成
+    generateMatrixTable();
+
+    // ジャンルチェックボックス生成
+    genres.forEach(genre => {
+        const label = document.createElement('label');
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.name = 'genre';
+        checkbox.value = genre;
+        checkbox.className = 'genre-checkbox';
+        
+        // ★変更点：チェックボックスが変更されたら件数を更新するイベントを追加
+        checkbox.addEventListener('change', updateSelectionCount);
+
+        const labelText = document.createElement('span');
+        labelText.className = 'genre-label';
+        labelText.textContent = genre;
+
+        label.appendChild(checkbox);
+        label.appendChild(labelText);
+        genreCheckboxesContainer.appendChild(label);
+    });
+
+    startBtn.addEventListener('click', startGame);
+    nextBtn.addEventListener('click', onNextClicked);
+    retryBtn.addEventListener('click', () => showScreen(startScreen));
+    
+    // 初回の件数表示（0問）を実行
+    updateSelectionCount();
+}
+
+// ★追加：選択中の問題数を計算して表示する関数
+function updateSelectionCount() {
+    // 1. チェックされているジャンルを取得
+    const selectedGenres = Array.from(document.querySelectorAll('input[name="genre"]:checked'))
+                                .map(cb => cb.value);
+
+    // 2. そのジャンルに含まれる問題数を計算
+    // （startGame関数と同じフィルタリングロジックを使って数えます）
+    const count = quizDataRaw.filter(q => selectedGenres.includes(q.genre)).length;
+
+    // 3. 画面に表示
+    const displayElem = document.getElementById('selection-count-display');
+    if (displayElem) {
+        displayElem.textContent = `選択中の問題数: ${count} 問`;
+    }
+}
+
+        // --- 問題数マトリクス生成 ---
+        function generateMatrixTable() {
+            // 集計
+            let counts = {};
+            genres.forEach(g => {
+                counts[g] = { 1:0, 2:0, 3:0, 4:0 };
+            });
+
+            quizDataRaw.forEach(q => {
+                if(counts[q.genre] && counts[q.genre][q.rank] !== undefined) {
+                    counts[q.genre][q.rank]++;
+                }
+            });
+
+            // ヘッダー生成
+            let html = `<thead><tr><th>ジャンル</th>`;
+            for(let r=1; r<=4; r++) {
+                html += `<th>${difficultyMap[r]}</th>`;
+            }
+            html += `</tr></thead><tbody>`;
+
+            // ボディ生成
+            genres.forEach(g => {
+                html += `<tr><td>${g}</td>`;
+                for(let r=1; r<=4; r++) {
+                    const count = counts[g][r];
+                    const cls = count > 0 ? "has-count" : "";
+                    html += `<td class="${cls}">${count > 0 ? count : "-"}</td>`;
+                }
+                html += `</tr>`;
+            });
+            html += `</tbody>`;
+
+            matrixTableElem.innerHTML = html;
+        }
+
+        // --- 画面切り替え ---
+        function showScreen(screenElem) {
+            [startScreen, quizScreen, resultScreen].forEach(s => s.classList.remove('active'));
+            screenElem.classList.add('active');
+            window.scrollTo(0, 0);
+        }
+
+        // --- ゲーム開始 ---
+        function startGame() {
+            const selectedGenres = Array.from(document.querySelectorAll('input[name="genre"]:checked'))
+                                        .map(cb => cb.value);
+            
+            if (selectedGenres.length === 0) {
+                alert("ジャンルを少なくとも1つ選択してください。");
+                return;
+            }
+
+            // 問題抽出・ソート
+            currentQuestions = filterAndSortQuestions(selectedGenres);
+            
+            if (currentQuestions.length === 0) {
+                alert("選択されたジャンルには問題がありません。");
+                return;
+            }
+
+            // リセット
+            currentQuestionIndex = 0;
+            userAnswers = [];
+            
+            // 結果画面へのジャンル表示用
+            selectedGenresDisplayElem.textContent = "挑戦ジャンル: " + selectedGenres.join(", ");
+
+            showScreen(quizScreen);
+            showQuestion();
+        }
+
+        // --- 問題抽出 ---
+        function filterAndSortQuestions(selectedGenres) {
+            let filtered = quizDataRaw.filter(q => selectedGenres.includes(q.genre));
+            let groupedByRank = {};
+            filtered.forEach(q => {
+                if (!groupedByRank[q.rank]) groupedByRank[q.rank] = [];
+                groupedByRank[q.rank].push(q);
+            });
+
+            let finalQuestions = [];
+            for (let rank = 1; rank <= 4; rank++) {
+                if (groupedByRank[rank]) {
+                    finalQuestions = finalQuestions.concat(shuffleArray(groupedByRank[rank]));
+                }
+            }
+            return finalQuestions;
+        }
+
+        function shuffleArray(array) {
+            const newArray = [...array];
+            for (let i = newArray.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
+            }
+            return newArray;
+        }
+
+        // --- 問題表示 ---
+        function showQuestion() {
+            const q = currentQuestions[currentQuestionIndex];
+            currentSelection = null; // 選択リセット
+            nextBtn.disabled = true; // 次へボタン無効化
+
+            currentQuestionNumElem.textContent = currentQuestionIndex + 1;
+            totalQuestionNumElem.textContent = currentQuestions.length;
+            
+            difficultyDisplayElem.textContent = q.difficulty;
+            difficultyDisplayElem.className = 'difficulty-tag ' + q.difficulty;
+            
+            genreDisplayElem.textContent = q.genre;
+            questionTextElem.textContent = q.question;
+
+            choicesContainerElem.innerHTML = '';
+            
+            // 選択肢シャッフル
+            let allChoices = [q.correctAnswer, ...q.wrongAnswers];
+            allChoices = shuffleArray(allChoices);
+
+            allChoices.forEach(choiceText => {
+                const btn = document.createElement('button');
+                btn.className = 'choice-btn';
+                btn.textContent = choiceText;
+                btn.addEventListener('click', () => selectChoice(btn, choiceText));
+                choicesContainerElem.appendChild(btn);
+            });
+        }
+
+        // --- 回答選択（クリック時） ---
+        function selectChoice(btn, text) {
+            // 全ボタンの選択状態解除
+            const buttons = choicesContainerElem.querySelectorAll('.choice-btn');
+            buttons.forEach(b => b.classList.remove('selected'));
+
+            // 選択したボタンを強調
+            btn.classList.add('selected');
+            currentSelection = text;
+            
+            // 次へボタン有効化
+            nextBtn.disabled = false;
+        }
+
+        // --- 次へボタン押下時 ---
+        function onNextClicked() {
+            if(!currentSelection) return;
+
+            const q = currentQuestions[currentQuestionIndex];
+            // 回答を記録
+            userAnswers.push({
+                question: q,
+                userAnswer: currentSelection,
+                isCorrect: (currentSelection === q.correctAnswer)
+            });
+
+            currentQuestionIndex++;
+            if (currentQuestionIndex < currentQuestions.length) {
+                showQuestion();
+            } else {
+                showResult();
+            }
+        }
+
+        // --- 結果表示 ---
+        function showResult() {
+            const total = currentQuestions.length;
+            const correctCount = userAnswers.filter(a => a.isCorrect).length;
+            const accuracy = total === 0 ? 0 : Math.round((correctCount / total) * 100);
+
+            correctCountElem.textContent = correctCount;
+            resultTotalCountElem.textContent = total;
+            accuracyRateElem.textContent = accuracy;
+
+            // 振り返りリスト生成
+            reviewListElem.innerHTML = '';
+            
+            // 誤答を優先してソート (誤答=false が先に来るように)
+            // isCorrect: true(1), false(0) -> a - b だと false(0) - true(1) = -1 で falseが先
+            const sortedAnswers = [...userAnswers].sort((a, b) => {
+                return (a.isCorrect === b.isCorrect) ? 0 : (a.isCorrect ? 1 : -1);
+            });
+
+            sortedAnswers.forEach((record, index) => {
+                const item = document.createElement('div');
+                item.className = `review-item ${record.isCorrect ? 'correct' : 'incorrect'}`;
+
+                const qText = document.createElement('span');
+                qText.className = 'review-q-text';
+                qText.textContent = `Q. ${record.question.question}`;
+
+                const tagInfo = document.createElement('span');
+                tagInfo.className = 'review-tag';
+                tagInfo.textContent = `${record.question.genre} / ${record.question.difficulty}`;
+
+                const detail = document.createElement('div');
+                detail.className = 'review-detail';
+
+                // ユーザーの回答表示
+                const userAnsElem = document.createElement('span');
+                userAnsElem.className = `user-ans ${record.isCorrect ? 'correct-text' : 'wrong-text'}`;
+                userAnsElem.textContent = `あなたの回答: ${record.userAnswer}`;
+                detail.appendChild(userAnsElem);
+
+                // 間違いの場合のみ正解を表示
+                if (!record.isCorrect) {
+                    const correctAnsElem = document.createElement('span');
+                    correctAnsElem.className = 'correct-ans';
+                    correctAnsElem.textContent = `正解: ${record.question.correctAnswer}`;
+                    detail.appendChild(correctAnsElem);
+                }
+
+                item.appendChild(tagInfo);
+                item.appendChild(qText);
+                item.appendChild(detail);
+                reviewListElem.appendChild(item);
+            });
+
+            showScreen(resultScreen);
+        }
+
+        // 開始
+        init();
+
+    </script>
+</body>
+</html>
